@@ -115,7 +115,7 @@ function Build-MFE {
         # Install dependencies if node_modules doesn't exist
         if (-not (Test-Path "node_modules")) {
             Write-Info "Installing dependencies..."
-            & $packageManager install
+            & $packageManager install | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "Dependency installation failed with exit code $LASTEXITCODE"
             }
@@ -148,7 +148,7 @@ function Build-MFE {
                 }
             }
 
-            # throw "Build failed (exit code $buildExitCode)" # Uncomment to throw on any build failure, or rely on specific error parsing above
+            # throw "Build failed (exit code $buildExitCode)"
         }
 
         Write-Success "MFE '$label' built successfully"
@@ -276,7 +276,8 @@ try {
 
         foreach ($mfe in $manifest.mfes) {
             $results.MfesTotal++
-            if (Build-MFE -Mfe $mfe -BaseDir $WorkingDir) {
+            $op = Build-MFE -Mfe $mfe -BaseDir $WorkingDir
+            if ($op) {
                 $results.MfesSuccess++
             }
             else {
