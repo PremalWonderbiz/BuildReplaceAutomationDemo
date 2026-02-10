@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.12.35527.113 d17.12
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11429.125 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibrary1", "ClassLibrary1\ClassLibrary1.csproj", "{019A6CFD-BDDA-49FF-8802-C95BA018CA76}"
 EndProject
@@ -10,6 +10,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibrary3", "ClassLibrary3\ClassLibrary3.csproj", "{EEA1CE76-5F1D-4945-A5AF-AEC46989362E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "premal-service.webapi", "premal-service.webapi\premal-service.webapi.csproj", "{76A3D99F-A657-4B52-9D12-6EDA3EC3572B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibrary4", "ClassLibrary4\ClassLibrary4.csproj", "{D952D82D-72B6-4F05-82A4-F445F1594A84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "premal-service2", "premal-service2\premal-service2.csproj", "{33991068-114E-47EF-B89F-A849BD13F44F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +37,14 @@ Global
 		{76A3D99F-A657-4B52-9D12-6EDA3EC3572B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{76A3D99F-A657-4B52-9D12-6EDA3EC3572B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{76A3D99F-A657-4B52-9D12-6EDA3EC3572B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D952D82D-72B6-4F05-82A4-F445F1594A84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D952D82D-72B6-4F05-82A4-F445F1594A84}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D952D82D-72B6-4F05-82A4-F445F1594A84}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D952D82D-72B6-4F05-82A4-F445F1594A84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33991068-114E-47EF-B89F-A849BD13F44F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33991068-114E-47EF-B89F-A849BD13F44F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33991068-114E-47EF-B89F-A849BD13F44F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33991068-114E-47EF-B89F-A849BD13F44F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
