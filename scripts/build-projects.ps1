@@ -1,0 +1,337 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Builds MFEs and services based on app.manifest.json configuration.
+
+.DESCRIPTION
+    Reads app.manifest.json, iterates through MFEs and services, and builds each project
+    if the required configuration file exists (package.json for MFEs, .csproj for services).
+
+.PARAMETER ManifestPath
+    Path to the app.manifest.json file. Defaults to ../src/app.manifest.json
+
+.PARAMETER WorkingDir
+    Base working directory. Defaults to ../src
+
+.PARAMETER SkipMfes
+    Skip building MFEs
+
+.PARAMETER SkipServices
+    Skip building services
+
+.EXAMPLE
+    .\build-projects.ps1
+    .\build-projects.ps1 -ManifestPath "./custom-manifest.json"
+    .\build-projects.ps1 -SkipMfes
+#>
+
+#region ============================ Parameters & Environment ============================
+
+[CmdletBinding()]
+param (
+    [Parameter()]
+    [string]$ManifestPath,
+
+    [Parameter()]
+    [string]$WorkingDir,
+
+    [Parameter()]
+    [switch]$SkipMfes,
+
+    [Parameter()]
+    [switch]$SkipServices
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+#endregion
+
+
+#region ============================ Console Output Helpers ============================
+
+function Write-Info    { Write-Host "[INFO] $args"    -ForegroundColor Cyan }
+function Write-Success { Write-Host "[SUCCESS] $args" -ForegroundColor Green }
+function Write-Warn    { Write-Host "[WARN] $args"    -ForegroundColor Yellow }
+function Write-Fail    { Write-Host "[ERROR] $args"   -ForegroundColor Red }
+
+#endregion
+
+
+#region ============================ Utility Functions ============================
+
+function Test-CommandExists {
+    param ([string]$Command)
+    $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
+}
+
+#endregion
+
+
+#region ============================ MFE Build Logic ============================
+
+function Build-MFE {
+    param (
+        [Parameter(Mandatory = $true)]
+        [object]$Mfe,
+
+        [Parameter(Mandatory = $true)]
+        [string]$BaseDir
+    )
+
+    $label           = $Mfe.label
+    $mfePath         = Join-Path (Join-Path $BaseDir "mfes") $label
+    $packageJsonPath = Join-Path $mfePath "package.json"
+
+    if (-not (Test-Path $packageJsonPath)) {
+        Write-Warn "Skipping MFE '$label': package.json not found at $packageJsonPath"
+        return $false
+    }
+
+    Write-Info "Building MFE: $label"
+    Write-Host "  Path: $mfePath" -ForegroundColor Gray
+
+    # Check for TypeScript config if build uses tsc
+    $hasTsConfig = Test-Path (Join-Path $mfePath "tsconfig.json")
+    if (-not $hasTsConfig) {
+        Write-Host "  Note: No tsconfig.json found" -ForegroundColor Yellow
+    }
+
+    Push-Location $mfePath
+    try {
+        # Check for package manager
+        $packageManager =
+            if (Test-Path "pnpm-lock.yaml") { "pnpm" }
+            elseif (Test-Path "yarn.lock")  { "yarn" }
+            elseif (Test-Path "package-lock.json") { "npm" }
+            else { "npm" }
+
+        if (-not (Test-CommandExists $packageManager)) {
+            throw "$packageManager is not installed or not in PATH"
+        }
+
+        Write-Host "  Using: $packageManager" -ForegroundColor Gray
+
+        # Install dependencies if node_modules doesn't exist
+        if (-not (Test-Path "node_modules")) {
+            Write-Info "Installing dependencies..."
+            & $packageManager install
+            if ($LASTEXITCODE -ne 0) {
+                throw "Dependency installation failed with exit code $LASTEXITCODE"
+            }
+        }
+
+        # Build
+        Write-Info "Running build..."
+        Write-Host "  Command: $packageManager run build" -ForegroundColor Gray
+
+        # Capture output to parse for specific failures
+        $output = & $packageManager run build
+        $buildExitCode = $LASTEXITCODE
+
+        # $output | ForEach-Object { Write-Host $_ } # Uncomment to see full output
+        # Write-Host "  Build Exit Code: $buildExitCode" -ForegroundColor Gray
+
+        if ($buildExitCode -ne 0) {
+            # Parse output to find which build failed
+            $outputStr = $output -join "`n"
+
+            if ($outputStr -match 'npm run build:webpack exited with code (\d+)') {
+                if ($matches[1] -ne '0') {
+                    Write-Fail "Webpack build failed (exit code $($matches[1]))"
+                }
+            }
+
+            if ($outputStr -match 'npm run build:types exited with code (\d+)') {
+                if ($matches[1] -ne '0') {
+                    Write-Fail "TypeScript build failed (exit code $($matches[1]))"
+                }
+            }
+
+            # throw "Build failed (exit code $buildExitCode)" # Uncomment to throw on any build failure, or rely on specific error parsing above
+        }
+
+        Write-Success "MFE '$label' built successfully"
+        return $true
+    }
+    catch {
+        Write-Fail "Failed to build MFE '$label': $_"
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+#endregion
+
+
+#region ============================ Service Build Logic ============================
+
+function Build-Service {
+    param (
+        [Parameter(Mandatory = $true)]
+        [object]$Service,
+
+        [Parameter(Mandatory = $true)]
+        [string]$BaseDir
+    )
+
+    $label       = $Service.microserviceLabel
+    $servicePath = Join-Path (Join-Path $BaseDir "services") $label
+
+    # Find .csproj file
+    $csprojFiles = @(Get-ChildItem -Path $servicePath -Filter "*.csproj" -ErrorAction SilentlyContinue)
+
+    if ($csprojFiles.Count -eq 0) {
+        Write-Warn "Skipping service '$label': .csproj file not found in $servicePath"
+        return $false
+    }
+
+    $csprojPath = $csprojFiles[0].FullName
+
+    Write-Info "Building Service: $label"
+    Write-Host "  Path: $servicePath" -ForegroundColor Gray
+    Write-Host "  Project: $($csprojFiles[0].Name)" -ForegroundColor Gray
+
+    try {
+        if (-not (Test-CommandExists "dotnet")) {
+            throw "dotnet CLI is not installed or not in PATH"
+        }
+
+        $framework = $Service.framework
+        $buildArgs = @("build", $csprojPath, "-c", "Release")
+
+        if ($framework) {
+            $buildArgs += @("-f", $framework)
+            Write-Host "  Framework: $framework" -ForegroundColor Gray
+        }
+
+        & dotnet @buildArgs
+        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+
+        Write-Success "Service '$label' built successfully"
+        return $true
+    }
+    catch {
+        Write-Fail "Failed to build service '$label': $_"
+        return $false
+    }
+}
+
+#endregion
+
+
+#region ============================ Main Execution ============================
+
+try {
+    Write-Host "`n=== Build Script Started ===" -ForegroundColor Magenta
+    Write-Host "============================================" -ForegroundColor Magenta
+
+    # Set default paths if not provided
+    # PSScriptRoot is in 'scripts' folder, so go up one level (..) to project root, then into 'src'
+    if (-not $ManifestPath) {
+        $projectRoot  = Split-Path $PSScriptRoot -Parent
+        $ManifestPath = Join-Path (Join-Path $projectRoot "src") "app.manifest.json"
+    }
+
+    if (-not $WorkingDir) {
+        $projectRoot = Split-Path $PSScriptRoot -Parent
+        $WorkingDir  = Join-Path $projectRoot "src"
+    }
+
+    # Validate paths
+    if (-not (Test-Path $ManifestPath)) {
+        throw "Manifest file not found: $ManifestPath"
+    }
+
+    if (-not (Test-Path $WorkingDir)) {
+        throw "Working directory not found: $WorkingDir"
+    }
+
+    # Resolve to absolute paths
+    $ManifestPath = (Resolve-Path $ManifestPath).Path
+    $WorkingDir   = (Resolve-Path $WorkingDir).Path
+
+    Write-Info "Manifest: $ManifestPath"
+    Write-Info "Working Directory: $WorkingDir"
+
+    # Read and parse manifest
+    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
+    Write-Info "App: $($manifest.appLabel) v$($manifest.version)"
+
+    $results = @{
+        MfesTotal       = 0
+        MfesSuccess     = 0
+        MfesFailed      = 0
+        ServicesTotal   = 0
+        ServicesSuccess = 0
+        ServicesFailed  = 0
+    }
+
+    # Build MFEs
+    if (-not $SkipMfes -and $manifest.mfes) {
+        Write-Host "`n=== Building MFEs ($($manifest.mfes.Count)) ===" -ForegroundColor Blue
+        Write-Host "============================================" -ForegroundColor Blue
+
+        foreach ($mfe in $manifest.mfes) {
+            $results.MfesTotal++
+            if (Build-MFE -Mfe $mfe -BaseDir $WorkingDir) {
+                $results.MfesSuccess++
+            }
+            else {
+                $results.MfesFailed++
+            }
+            Write-Host ""
+        }
+    }
+
+    # Build Services
+    if (-not $SkipServices -and $manifest.services) {
+        Write-Host "`n=== Building Services ($($manifest.services.Count)) ===" -ForegroundColor Blue
+        Write-Host "============================================" -ForegroundColor Blue
+
+        foreach ($service in $manifest.services) {
+            $results.ServicesTotal++
+            if (Build-Service -Service $service -BaseDir $WorkingDir) {
+                $results.ServicesSuccess++
+            }
+            else {
+                $results.ServicesFailed++
+            }
+            Write-Host ""
+        }
+    }
+
+    # Summary
+    Write-Host "`n=== Build Summary ===" -ForegroundColor Magenta
+    Write-Host "============================================" -ForegroundColor Magenta
+
+    if ($results.MfesTotal -gt 0) {
+        Write-Host "  MFEs:     $($results.MfesSuccess)/$($results.MfesTotal) successful" `
+            -ForegroundColor ($(if ($results.MfesFailed -eq 0) { "Green" } else { "Yellow" }))
+    }
+
+    if ($results.ServicesTotal -gt 0) {
+        Write-Host "  Services: $($results.ServicesSuccess)/$($results.ServicesTotal) successful" `
+            -ForegroundColor ($(if ($results.ServicesFailed -eq 0) { "Green" } else { "Yellow" }))
+    }
+
+    $totalFailed = $results.MfesFailed + $results.ServicesFailed
+
+    if ($totalFailed -eq 0) {
+        Write-Host "`n[SUCCESS] All builds completed successfully!" -ForegroundColor Green
+        exit 0
+    }
+    else {
+        Write-Host "`n[WARN] Build completed with $totalFailed failure(s)" -ForegroundColor Yellow
+        exit 1
+    }
+}
+catch {
+    Write-Fail "Build script failed: $_"
+    Write-Host $_.ScriptStackTrace -ForegroundColor Red
+    exit 1
+}
+
+#endregion

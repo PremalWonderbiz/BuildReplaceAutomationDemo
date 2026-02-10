@@ -1,0 +1,19 @@
+{
+    "appLabel": "premal-app",
+    "version": "0.3.0",
+    "mfes": [
+        {
+            "label": "mfe-1",
+            "name": "mfe-1",
+            "version": "0.3.0"
+        }
+    ],
+    "services": [
+        {
+            "microserviceName": "premal-service.webapi",
+            "microserviceLabel": "premal-service.webapi",
+            "version": "0.3.0",
+            "framework": "net8.0"
+        }
+    ]
+}
