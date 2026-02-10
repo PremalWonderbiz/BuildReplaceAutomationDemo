@@ -6,6 +6,16 @@
       "label": "mfe-1",
       "name": "mfe-1",
       "version": "0.3.0"
+    },
+    {
+      "label": "mfe-2",
+      "name": "mfe-2",
+      "version": "0.3.0"
+    },
+    {
+      "label": "mfe-3",
+      "name": "mfe-3",
+      "version": "0.3.0"
     }
   ],
   "services": [
