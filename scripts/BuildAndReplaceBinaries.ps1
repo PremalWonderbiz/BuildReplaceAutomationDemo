@@ -73,7 +73,6 @@ function Test-CommandExists {
 
 #endregion
 
-
 #region ============================ File Copy Helpers ============================
 
 function Copy-MfeBuildFiles {
@@ -192,38 +191,6 @@ function Copy-ServiceBuildFiles {
 
 #endregion
 
-
-#region ============================ Directory Finding Helpers ============================
-
-function Find-TargetDirectory {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$ParentPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Label,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Version
-    )
-
-    if (-not (Test-Path $ParentPath)) {
-        return $null
-    }
-
-    # Pattern: label-version-* (e.g., mfe-1-0.3.0-alpha.14)
-    $pattern = "$Label-$Version-*"
-    $directories = @(Get-ChildItem -Path $ParentPath -Directory -Filter $pattern -ErrorAction SilentlyContinue)
-
-    if ($directories.Count -gt 0) {
-        return $directories[0].FullName
-    }
-
-    return $null
-}
-
-#endregion
-
 #region ============================ MFE Build Logic ============================
 function Build-MFE {
     param (
@@ -333,7 +300,6 @@ function Build-MFE {
 
 #endregion
 
-
 #region ============================ Service Build Logic ============================
 
 function Build-Service {
@@ -408,7 +374,6 @@ function Build-Service {
 }
 
 #endregion
-
 
 #region ============================ Main Execution ============================
 
@@ -495,7 +460,6 @@ try {
         foreach ($mfe in $manifest.mfes) {
             $results.MfesTotal++
             $result = Build-MFE -Mfe $mfe -BaseDir $WorkingDir -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" }) -Version $manifest.version
-            Write-Host "$result" -ForegroundColor Gray
             if ($result.BuildSuccess) {
                 $results.MfesSuccess++
                 if ($result.CopySuccess) {
@@ -518,7 +482,6 @@ try {
         foreach ($service in $manifest.services) {
             $results.ServicesTotal++
             $result = Build-Service -Service $service -BaseDir $WorkingDir -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" })
-            Write-Host "$result" -ForegroundColor Gray
             if ($result.BuildSuccess) {
                 $results.ServicesSuccess++
                 if ($result.CopySuccess) {
