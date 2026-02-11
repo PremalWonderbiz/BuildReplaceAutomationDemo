@@ -97,6 +97,28 @@
         },
       },
       {
+        "label": "Build&ReplaceBinaries All Projects",
+        "type": "shell",
+        "command": "powershell",
+        "args": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}/scripts/BuildAndReplaceBinaries.ps1",
+          "-ReplaceBinaries",
+        ],
+        "problemMatcher": [],
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared",
+          "showReuseMessage": true,
+          "clear": false,
+        },
+        "group": "build",
+      },
+      {
         "label": "Build MFEs Only",
         "type": "shell",
         "command": "powershell",
