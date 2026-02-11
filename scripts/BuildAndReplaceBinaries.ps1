@@ -81,21 +81,23 @@ function Build-MFE {
 
     $label           = $Mfe.label
     $mfePath         = Join-Path (Join-Path $BaseDir "mfes") $label
+    # check $mfePath exixts
     $packageJsonPath = Join-Path $mfePath "package.json"
 
-    if (-not (Test-Path $packageJsonPath)) {
-        Write-Warn "Skipping MFE '$label': package.json not found at $packageJsonPath"
-        return $false
-    }
+# no need
+    # if (-not (Test-Path $packageJsonPath)) {
+    #     Write-Warn "Skipping MFE '$label': package.json not found at $packageJsonPath"
+    #     return $false
+    # }
 
     Write-Info "Building MFE: $label"
     Write-Host "  Path: $mfePath" -ForegroundColor Gray
 
     # Check for TypeScript config if build uses tsc
-    $hasTsConfig = Test-Path (Join-Path $mfePath "tsconfig.json")
-    if (-not $hasTsConfig) {
-        Write-Host "  Note: No tsconfig.json found" -ForegroundColor Yellow
-    }
+    # $hasTsConfig = Test-Path (Join-Path $mfePath "tsconfig.json")
+    # if (-not $hasTsConfig) {
+    #     Write-Host "  Note: No tsconfig.json found" -ForegroundColor Yellow
+    # }
 
     Push-Location $mfePath
     try {
@@ -148,7 +150,7 @@ function Build-MFE {
                 }
             }
 
-            # throw "Build failed (exit code $buildExitCode)"
+            throw "Build failed (exit code $buildExitCode)"
         }
 
         Write-Success "MFE '$label' built successfully"
