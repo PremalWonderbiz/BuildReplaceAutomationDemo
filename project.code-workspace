@@ -105,7 +105,8 @@
           "Bypass",
           "-File",
           "${workspaceFolder}/scripts/BuildAndReplaceBinaries.ps1",
-          "-SkipServices",
+          "-BuildTarget",
+          "MfesOnly",
         ],
         "problemMatcher": [],
         "presentation": {
@@ -127,7 +128,8 @@
           "Bypass",
           "-File",
           "${workspaceFolder}/scripts/BuildAndReplaceBinaries.ps1",
-          "-SkipMfes",
+          "-BuildTarget",
+          "ServicesOnly",
         ],
         "problemMatcher": [],
         "presentation": {

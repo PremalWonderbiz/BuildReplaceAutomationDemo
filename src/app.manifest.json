@@ -30,6 +30,12 @@
       "microserviceLabel": "premal-service2",
       "version": "0.3.0",
       "framework": "net10.0"
+    },
+    {
+      "microserviceName": "console-project1",
+      "microserviceLabel": "console-project1",
+      "version": "0.3.0",
+      "framework": "net10.0"
     }
   ]
 }

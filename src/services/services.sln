@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.3.11429.125 d18.3
+VisualStudioVersion = 18.3.11429.125
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibrary1", "ClassLibrary1\ClassLibrary1.csproj", "{019A6CFD-BDDA-49FF-8802-C95BA018CA76}"
 EndProject
@@ -14,6 +14,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClassLibrary4", "ClassLibrary4\ClassLibrary4.csproj", "{D952D82D-72B6-4F05-82A4-F445F1594A84}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "premal-service2", "premal-service2\premal-service2.csproj", "{33991068-114E-47EF-B89F-A849BD13F44F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "consoleProjects", "consoleProjects", "{B7F0F4C2-685E-416B-BAF7-091BC5305BBC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "console-project1", "consoleProjects\console-project1\console-project1.csproj", "{B3E5D522-9B58-4B99-B0AD-859E682E1DF2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,8 +49,15 @@ Global
 		{33991068-114E-47EF-B89F-A849BD13F44F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{33991068-114E-47EF-B89F-A849BD13F44F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{33991068-114E-47EF-B89F-A849BD13F44F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3E5D522-9B58-4B99-B0AD-859E682E1DF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3E5D522-9B58-4B99-B0AD-859E682E1DF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3E5D522-9B58-4B99-B0AD-859E682E1DF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3E5D522-9B58-4B99-B0AD-859E682E1DF2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B3E5D522-9B58-4B99-B0AD-859E682E1DF2} = {B7F0F4C2-685E-416B-BAF7-091BC5305BBC}
 	EndGlobalSection
 EndGlobal

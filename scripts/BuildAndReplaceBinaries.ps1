@@ -13,16 +13,14 @@
 .PARAMETER WorkingDir
     Base working directory. Defaults to ../src
 
-.PARAMETER SkipMfes
-    Skip building MFEs
-
-.PARAMETER SkipServices
-    Skip building services
+.PARAMETER BuildTarget
+    Specifies what to build: 'All' (default), 'MfesOnly', or 'ServicesOnly'
 
 .EXAMPLE
     .\build-projects.ps1
     .\build-projects.ps1 -ManifestPath "./custom-manifest.json"
-    .\build-projects.ps1 -SkipMfes
+    .\build-projects.ps1 -BuildTarget MfesOnly
+    .\build-projects.ps1 -BuildTarget ServicesOnly
 #>
 
 #region ============================ Parameters & Environment ============================
@@ -36,10 +34,8 @@ param (
     [string]$WorkingDir,
 
     [Parameter()]
-    [switch]$SkipMfes,
-
-    [Parameter()]
-    [switch]$SkipServices
+    [ValidateSet('All', 'MfesOnly', 'ServicesOnly')]
+    [string]$BuildTarget = 'All'
 )
 
 Set-StrictMode -Version Latest
@@ -81,23 +77,15 @@ function Build-MFE {
 
     $label           = $Mfe.label
     $mfePath         = Join-Path (Join-Path $BaseDir "mfes") $label
+    
     # check $mfePath exixts
-    $packageJsonPath = Join-Path $mfePath "package.json"
-
-# no need
-    # if (-not (Test-Path $packageJsonPath)) {
-    #     Write-Warn "Skipping MFE '$label': package.json not found at $packageJsonPath"
-    #     return $false
-    # }
+    if (-not (Test-Path $mfePath)) {
+        Write-Warn "Skipping MFE '$label': Path not found ($mfePath)"
+        return $false
+    }
 
     Write-Info "Building MFE: $label"
     Write-Host "  Path: $mfePath" -ForegroundColor Gray
-
-    # Check for TypeScript config if build uses tsc
-    # $hasTsConfig = Test-Path (Join-Path $mfePath "tsconfig.json")
-    # if (-not $hasTsConfig) {
-    #     Write-Host "  Note: No tsconfig.json found" -ForegroundColor Yellow
-    # }
 
     Push-Location $mfePath
     try {
@@ -180,17 +168,18 @@ function Build-Service {
     )
 
     $label       = $Service.microserviceLabel
-    $servicePath = Join-Path (Join-Path $BaseDir "services") $label
+    $servicesDir = Join-Path $BaseDir "services"
 
-    # Find .csproj file
-    $csprojFiles = @(Get-ChildItem -Path $servicePath -Filter "*.csproj" -ErrorAction SilentlyContinue)
+    # Find label.csproj file at any level under services directory
+    $csprojFiles = @(Get-ChildItem -Path $servicesDir -Filter "$label.csproj" -Recurse -ErrorAction SilentlyContinue)
 
     if ($csprojFiles.Count -eq 0) {
-        Write-Warn "Skipping service '$label': .csproj file not found in $servicePath"
+        Write-Warn "Skipping service '$label': $label.csproj file not found under $servicesDir"
         return $false
     }
 
     $csprojPath = $csprojFiles[0].FullName
+    $servicePath = Split-Path $csprojPath -Parent
 
     Write-Info "Building Service: $label"
     Write-Host "  Path: $servicePath" -ForegroundColor Gray
@@ -272,8 +261,9 @@ try {
     }
 
     # Build MFEs
-    if (-not $SkipMfes -and $manifest.mfes) {
-        Write-Host "`n=== Building MFEs ($($manifest.mfes.Count)) ===" -ForegroundColor Blue
+    if ($BuildTarget -in @('All', 'MfesOnly') -and $manifest.mfes) {
+        Write-Host "`n=== Building MFEs ===" -ForegroundColor Blue
+        Write-Host "`=== Total MFEs found in app manifest : ($($manifest.mfes.Count)) ===" -ForegroundColor Blue
         Write-Host "============================================" -ForegroundColor Blue
 
         foreach ($mfe in $manifest.mfes) {
@@ -290,8 +280,9 @@ try {
     }
 
     # Build Services
-    if (-not $SkipServices -and $manifest.services) {
+    if ($BuildTarget -in @('All', 'ServicesOnly') -and $manifest.services) {
         Write-Host "`n=== Building Services ($($manifest.services.Count)) ===" -ForegroundColor Blue
+        Write-Host "`=== Total Services found in app manifest : ($($manifest.services.Count)) ===" -ForegroundColor Blue
         Write-Host "============================================" -ForegroundColor Blue
 
         foreach ($service in $manifest.services) {
