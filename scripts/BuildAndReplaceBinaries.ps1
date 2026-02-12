@@ -66,10 +66,11 @@ param (
     [switch]$ReplaceBinaries
 )
 
-Set-StrictMode -Version Latest
+Set-StrictMode -Version 1
 $ErrorActionPreference = "Stop"
 
-[string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\Schneider Electric\EcoStruxure Automation Expert Platform\01.00\Install"
+[string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\WonderBiz Technologies\WonderBiz Platform\01.00\Install"
+# [string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\Schneider Electric\EcoStruxure Automation Expert Platform\01.00\Install"
 [string]$appPathInMAF = ""
 
 #endregion
@@ -278,9 +279,20 @@ function Build-MFE {
         # Build
         Write-Info "Running build..."
         Write-Host "  Command: $packageManager run build" -ForegroundColor Gray
+        
+        $output = switch ($packageManager) {
+            "npm" { npm run build }
+            "pnpm" { pnpm run build }
+            "yarn" { yarn run build }
+            default { throw "Unsupported package manager: $packageManager" }
+        }
 
-        Set-StrictMode -Off
-        $output = npm run build
+        $buildExitCode = $LASTEXITCODE
+
+        if ($buildExitCode -ne 0) {
+            throw "Build failed with exit code $buildExitCode"
+        }
+
         $buildExitCode = $LASTEXITCODE
 
         # $output | ForEach-Object { Write-Host $_ } # Uncomment to see full output
@@ -327,7 +339,6 @@ function Build-MFE {
     }
     finally {
         Pop-Location
-        Set-StrictMode -Version Latest
     }
 }
 
