@@ -53,7 +53,6 @@ $ErrorActionPreference = "Stop"
 
 #endregion
 
-
 #region ============================ Console Output Helpers ============================
 
 function Write-Info    { Write-Host "[INFO] $args"    -ForegroundColor Cyan }
@@ -62,7 +61,6 @@ function Write-Warn    { Write-Host "[WARN] $args"    -ForegroundColor Yellow }
 function Write-Fail    { Write-Host "[ERROR] $args"   -ForegroundColor Red }
 
 #endregion
-
 
 #region ============================ Utility Functions ============================
 
@@ -126,6 +124,11 @@ function Copy-MfeBuildFiles {
         Write-Host "  To:   $targetPath" -ForegroundColor Gray
 
         # Copy files from dist to target
+        if (-not (Test-Path $targetPath)) {
+            Write-Warn "Target mfe folder not found in MAF: $targetPath. Skipping replace binaries for this service."
+            return $false
+        }
+        Remove-Item "$targetPath\*" -Recurse -Force
         Copy-Item -Path (Join-Path $distPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
         
         Write-Success "MFE '$MfeLabel' binaries replaced successfully"
@@ -178,6 +181,11 @@ function Copy-ServiceBuildFiles {
         Write-Host "  To:   $targetPath" -ForegroundColor Gray
 
         # Copy files from bin to target
+        if (-not (Test-Path $targetPath)) {
+            Write-Warn "Target service folder not found in MAF: $targetPath. Skipping replace binaries for this service."
+            return $false
+        }
+        Remove-Item "$targetPath\*" -Recurse -Force
         Copy-Item -Path (Join-Path $binPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
         
         Write-Success "Service '$ServiceLabel' binaries replaced successfully"
@@ -210,7 +218,7 @@ function Build-MFE {
     $label           = $Mfe.label
     $mfePath         = Join-Path (Join-Path $BaseDir "mfes") $label
     
-    # check $mfePath exixts
+    # check $mfePath exists
     if (-not (Test-Path $mfePath)) {
         Write-Warn "Skipping MFE '$label': Path not found ($mfePath)"
         return $false
@@ -429,11 +437,20 @@ try {
             if (-not (Test-Path $mafInstallPath)) {
                 throw "MAF installation path error: Please check if WonderBiz Platform is installed correctly."
             }
-            $appPathInMAF = Join-Path $mafInstallPath "MAF" | Join-Path -ChildPath "dist" | Join-Path -ChildPath "$($manifest.appLabel)-$($manifest.version)-alpha.14"
-            Write-Info "Target MAF App Dist Path: $appPathInMAF"
-            if (-not (Test-Path $appPathInMAF)) {
-                throw "App is not installed in MAF: $($manifest.appLabel)"
+            $distRoot = Join-Path (Join-Path $mafInstallPath "MAF") "dist"
+
+            $pattern = "$($manifest.appLabel)-$($manifest.version)-*"
+
+            $appFolder = Get-ChildItem -Path $distRoot -Directory -Filter $pattern -ErrorAction SilentlyContinue |
+                        Sort-Object LastWriteTime -Descending |
+                        Select-Object -First 1
+
+            if (-not $appFolder) {
+                throw "App is not installed in MAF: $($manifest.appLabel) v$($manifest.version)"
             }
+            
+            $appPathInMAF = $appFolder.FullName
+            Write-Info "Target MAF App Dist Path: $appPathInMAF"
         }
         catch {
             throw "$_"
