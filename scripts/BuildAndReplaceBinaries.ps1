@@ -1,31 +1,52 @@
-#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Builds MFEs and services based on app.manifest.json configuration.
+    Builds MFEs and .NET services from app.manifest.json configuration.
 
 .DESCRIPTION
-    Reads app.manifest.json, iterates through MFEs and services, and builds each project
-    if the required configuration file exists (package.json for MFEs, .csproj for services).
+    Automates building of Micro Frontends (MFEs) and .NET services from app.manifest.json.
+    Defaults: ManifestPath=../src/app.manifest.json, WorkingDir=../src
+    
+    Build Targets: All (default) | MfesOnly | ServicesOnly
+    Optional: Use -ReplaceBinaries to copy built files to MAF installation.
 
 .PARAMETER ManifestPath
-    Path to the app.manifest.json file. Defaults to ../src/app.manifest.json
+    Path to app.manifest.json. Default: ../src/app.manifest.json
 
 .PARAMETER WorkingDir
-    Base working directory. Defaults to ../src
+    Base directory containing mfes/ and services/. Default: ../src
 
 .PARAMETER BuildTarget
-    Specifies what to build: 'All' (default), 'MfesOnly', or 'ServicesOnly'
+    Build scope. Values: All (default), MfesOnly, ServicesOnly
 
 .PARAMETER ReplaceBinaries
-    If set, copies built binaries to MAF installation directory after successful build
+    Copy built binaries to MAF installation after successful build.
 
 .EXAMPLE
-    .\build-projects.ps1
-    .\build-projects.ps1 -ManifestPath "./custom-manifest.json"
-    .\build-projects.ps1 -BuildTarget MfesOnly
-    .\build-projects.ps1 -BuildTarget ServicesOnly
-    .\build-projects.ps1 -ReplaceBinaries
+    .\BuildAndReplaceBinaries.ps1
+    Build all MFEs and services.
+
+.EXAMPLE
+    .\BuildAndReplaceBinaries.ps1 -BuildTarget MfesOnly
+    Build MFEs only.
+
+.EXAMPLE
+    .\BuildAndReplaceBinaries.ps1 -BuildTarget ServicesOnly
+    Build services only.
+
+.EXAMPLE
+    .\BuildAndReplaceBinaries.ps1 -ReplaceBinaries
+    Build all and replace MAF binaries.
+
+.EXAMPLE
+    .\BuildAndReplaceBinaries.ps1 -ManifestPath ".\custom.json" -ReplaceBinaries
+    Use custom manifest and replace MAF binaries.
+
+.NOTES
+    Requirements: PowerShell 7.0+, Node.js, .NET SDK, npm/pnpm/yarn (auto-detected)
+    Exit Codes: 0=Success, 1=Failure
+    Version: 1.0.0
 #>
+
 
 #region ============================ Parameters & Environment ============================
 
@@ -48,17 +69,17 @@ param (
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-[string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\WonderBiz Technologies\WonderBiz Platform\01.00\Install"
+[string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\Schneider Electric\EcoStruxure Automation Expert Platform\01.00\Install"
 [string]$appPathInMAF = ""
 
 #endregion
 
 #region ============================ Console Output Helpers ============================
 
-function Write-Info    { Write-Host "[INFO] $args"    -ForegroundColor Cyan }
+function Write-Info { Write-Host "[INFO] $args"    -ForegroundColor Cyan }
 function Write-Success { Write-Host "[SUCCESS] $args" -ForegroundColor Green }
-function Write-Warn    { Write-Host "[WARN] $args"    -ForegroundColor Yellow }
-function Write-Fail    { Write-Host "[ERROR] $args"   -ForegroundColor Red }
+function Write-Warn { Write-Host "[WARN] $args"    -ForegroundColor Yellow }
+function Write-Fail { Write-Host "[ERROR] $args"   -ForegroundColor Red }
 
 #endregion
 
@@ -159,7 +180,7 @@ function Copy-ServiceBuildFiles {
         $servicesDir = Join-Path $TargetBasePath "services"
         
         # Find service folder matching pattern: service-label-*
-        $serviceFolders = @(Get-ChildItem -Path $servicesDir -Directory -Filter "$ServiceLabel-*" -ErrorAction SilentlyContinue)
+        $serviceFolders = @(Get-ChildItem -Path $servicesDir -Directory -Filter "$ServiceLabel*" -ErrorAction SilentlyContinue)
         
         if ($serviceFolders.Count -eq 0) {
             Write-Warn "Service '$ServiceLabel' not installed in MAF. Skipping replace binaries for this service."
@@ -215,13 +236,16 @@ function Build-MFE {
         [string]$Version = ""
     )
 
-    $label           = $Mfe.label
-    $mfePath         = Join-Path (Join-Path $BaseDir "mfes") $label
+    $label = $Mfe.label
+    $mfePath = Join-Path (Join-Path $BaseDir "mfes") $label
     
     # check $mfePath exists
     if (-not (Test-Path $mfePath)) {
         Write-Warn "Skipping MFE '$label': Path not found ($mfePath)"
-        return $false
+        return @{
+            BuildSuccess = $false
+            CopySuccess  = $false
+        }
     }
 
     Write-Info "Building MFE: $label"
@@ -231,10 +255,10 @@ function Build-MFE {
     try {
         # Check for package manager
         $packageManager =
-            if (Test-Path "pnpm-lock.yaml") { "pnpm" }
-            elseif (Test-Path "yarn.lock")  { "yarn" }
-            elseif (Test-Path "package-lock.json") { "npm" }
-            else { "npm" }
+        if (Test-Path "pnpm-lock.yaml") { "pnpm" }
+        elseif (Test-Path "yarn.lock") { "yarn" }
+        elseif (Test-Path "package-lock.json") { "npm" }
+        else { "npm" }
 
         if (-not (Test-CommandExists $packageManager)) {
             throw "$packageManager is not installed or not in PATH"
@@ -255,8 +279,8 @@ function Build-MFE {
         Write-Info "Running build..."
         Write-Host "  Command: $packageManager run build" -ForegroundColor Gray
 
-        # Capture output to parse for specific failures
-        $output = & $packageManager run build
+        Set-StrictMode -Off
+        $output = npm run build
         $buildExitCode = $LASTEXITCODE
 
         # $output | ForEach-Object { Write-Host $_ } # Uncomment to see full output
@@ -291,18 +315,19 @@ function Build-MFE {
         
         return @{
             BuildSuccess = $true
-            CopySuccess = $copySuccess
+            CopySuccess  = $copySuccess
         }
     }
     catch {
         Write-Fail "Failed to build MFE '$label': $_"
         return @{
             BuildSuccess = $false
-            CopySuccess = $false
+            CopySuccess  = $false
         }
     }
     finally {
         Pop-Location
+        Set-StrictMode -Version Latest
     }
 }
 
@@ -322,7 +347,7 @@ function Build-Service {
         [string]$MafPath = ""
     )
 
-    $label       = $Service.microserviceLabel
+    $label = $Service.microserviceLabel
     $servicesDir = Join-Path $BaseDir "services"
 
     # Find label.csproj file at any level under services directory
@@ -332,7 +357,7 @@ function Build-Service {
         Write-Warn "Skipping service '$label': $label.csproj file not found under $servicesDir"
         return @{
             BuildSuccess = $false
-            CopySuccess = $false
+            CopySuccess  = $false
         }
     }
 
@@ -369,14 +394,14 @@ function Build-Service {
         
         return @{
             BuildSuccess = $true
-            CopySuccess = $copySuccess
+            CopySuccess  = $copySuccess
         }
     }
     catch {
         Write-Fail "Failed to build service '$label': $_"
         return @{
             BuildSuccess = $false
-            CopySuccess = $false
+            CopySuccess  = $false
         }
     }
 }
@@ -392,13 +417,13 @@ try {
     # Set default paths if not provided
     # PSScriptRoot is in 'scripts' folder, so go up one level (..) to project root, then into 'src'
     if (-not $ManifestPath) {
-        $projectRoot  = Split-Path $PSScriptRoot -Parent
+        $projectRoot = Split-Path $PSScriptRoot -Parent
         $ManifestPath = Join-Path (Join-Path $projectRoot "src") "app.manifest.json"
     }
 
     if (-not $WorkingDir) {
         $projectRoot = Split-Path $PSScriptRoot -Parent
-        $WorkingDir  = Join-Path $projectRoot "src"
+        $WorkingDir = Join-Path $projectRoot "src"
     }
 
     # Validate paths
@@ -412,7 +437,7 @@ try {
 
     # Resolve to absolute paths
     $ManifestPath = (Resolve-Path $ManifestPath).Path
-    $WorkingDir   = (Resolve-Path $WorkingDir).Path
+    $WorkingDir = (Resolve-Path $WorkingDir).Path
 
     Write-Info "Manifest: $ManifestPath"
     Write-Info "Working Directory: $WorkingDir"
@@ -422,12 +447,12 @@ try {
     Write-Info "App: $($manifest.appLabel) v$($manifest.version)"
 
     #replace binaries validation and path retrieval
-    if($ReplaceBinaries) {
+    if ($ReplaceBinaries) {
         Write-Info "Replace Binaries flag is set. Built binaries will be copied to MAF installation directory after build."
         
         # Get MAF installation path from registry
         if (-not (Test-Path $registryKey)) {
-            throw "Registry not found: $registryKey"
+            throw "Registry not found: $registryKey" #change
         }
 
         try {
@@ -442,13 +467,13 @@ try {
             $pattern = "$($manifest.appLabel)-$($manifest.version)-*"
 
             $appFolder = Get-ChildItem -Path $distRoot -Directory -Filter $pattern -ErrorAction SilentlyContinue |
-                        Sort-Object LastWriteTime -Descending |
-                        Select-Object -First 1
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
 
             if (-not $appFolder) {
                 throw "App is not installed in MAF: $($manifest.appLabel) v$($manifest.version)"
             }
-            
+
             $appPathInMAF = $appFolder.FullName
             Write-Info "Target MAF App Dist Path: $appPathInMAF"
         }
@@ -458,13 +483,13 @@ try {
     }
 
     $results = @{
-        MfesTotal       = 0
-        MfesSuccess     = 0
-        MfesFailed      = 0
-        ServicesTotal   = 0
-        ServicesSuccess = 0
-        ServicesFailed  = 0
-        MfesReplaced    = 0
+        MfesTotal        = 0
+        MfesSuccess      = 0
+        MfesFailed       = 0
+        ServicesTotal    = 0
+        ServicesSuccess  = 0
+        ServicesFailed   = 0
+        MfesReplaced     = 0
         ServicesReplaced = 0
     }
 

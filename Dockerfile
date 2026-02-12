@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0
+FROM mcr.microsoft.com/dotnet/sdk:10.0
 
 # Install prerequisites
 RUN apt-get update && \
@@ -29,4 +29,7 @@ RUN chmod +x ./scripts/BuildAndReplaceBinaries.ps1
 
 # Run build script
 # CMD ["pwsh", "./scripts/BuildAndReplaceBinaries.ps1"]
-CMD ["pwsh"]
+# CMD ["pwsh", "./scripts/BuildAndReplaceBinaries.ps1", "-BuildTarget", "ServicesOnly"]
+CMD ["pwsh", "./scripts/BuildAndReplaceBinaries.ps1", "-ReplaceBinaries"]
+
+# CMD ["pwsh"]
