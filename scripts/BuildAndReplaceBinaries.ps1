@@ -121,18 +121,18 @@ function Copy-MfeBuildFiles {
             return $false
         }
 
-        Write-Info "Copying MFE build files..."
+        Write-Info "Replacing MFE binaries in MAF..."
         Write-Host "  From: $distPath" -ForegroundColor Gray
         Write-Host "  To:   $targetPath" -ForegroundColor Gray
 
         # Copy files from dist to target
         Copy-Item -Path (Join-Path $distPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
         
-        Write-Success "MFE '$MfeLabel' files copied successfully"
+        Write-Success "MFE '$MfeLabel' binaries replaced successfully"
         return $true
     }
     catch {
-        Write-Fail "Failed to copy MFE files: $_"
+        Write-Fail "Failed to replace MFE binaries: $_"
         return $false
     }
 }
@@ -173,18 +173,18 @@ function Copy-ServiceBuildFiles {
             return $false
         }
 
-        Write-Info "Copying Service build files..."
+        Write-Info "Replacing Service binaries in MAF..."
         Write-Host "  From: $binPath" -ForegroundColor Gray
         Write-Host "  To:   $targetPath" -ForegroundColor Gray
 
         # Copy files from bin to target
         Copy-Item -Path (Join-Path $binPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
         
-        Write-Success "Service '$ServiceLabel' files copied successfully"
+        Write-Success "Service '$ServiceLabel' binaries replaced successfully"
         return $true
     }
     catch {
-        Write-Fail "Failed to copy Service files: $_"
+        Write-Fail "Failed to replace Service binaries: $_"
         return $false
     }
 }
@@ -378,7 +378,7 @@ function Build-Service {
 #region ============================ Main Execution ============================
 
 try {
-    Write-Host "`n=== Script Started ===" -ForegroundColor Magenta
+    Write-Host "`n=== Script Execution Started ===" -ForegroundColor Magenta
     Write-Host "============================================" -ForegroundColor Magenta
 
     # Set default paths if not provided
