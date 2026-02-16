@@ -269,52 +269,44 @@ function Build-MFE {
 
         # Install dependencies if node_modules doesn't exist
         if (-not (Test-Path "node_modules")) {
+            Write-Host "  Command: $packageManager install" -ForegroundColor Gray
             Write-Info "Installing dependencies..."
-            & $packageManager install | Out-Null
+            $output = switch ($packageManager) {
+                "npm" { npm install }
+                "pnpm" { pnpm install }
+                "yarn" { yarn install }
+                default { throw "Unsupported package manager: $packageManager" }
+            }
+
+            $outputStr = $output -join "`n" 
+            Write-Host "$outputStr" -ForegroundColor Gray
+
             if ($LASTEXITCODE -ne 0) {
+                $outputStr = $output -join "`n"
+                Write-Fail "$outputStr"
                 throw "Dependency installation failed with exit code $LASTEXITCODE"
             }
         }
 
         # Build
-        Write-Info "Running build..."
         Write-Host "  Command: $packageManager run build" -ForegroundColor Gray
-        
+        Write-Info "Running build..."
+
+        $output = ""
         $output = switch ($packageManager) {
             "npm" { npm run build }
             "pnpm" { pnpm run build }
             "yarn" { yarn run build }
             default { throw "Unsupported package manager: $packageManager" }
         }
+        
+        # $output | ForEach-Object { Write-Host $_ } # Uncomment to see full output
+        # Write-Host "  Build Exit Code: $buildExitCode" -ForegroundColor Gray
 
         $buildExitCode = $LASTEXITCODE
 
         if ($buildExitCode -ne 0) {
             throw "Build failed with exit code $buildExitCode"
-        }
-
-        $buildExitCode = $LASTEXITCODE
-
-        # $output | ForEach-Object { Write-Host $_ } # Uncomment to see full output
-        # Write-Host "  Build Exit Code: $buildExitCode" -ForegroundColor Gray
-
-        if ($buildExitCode -ne 0) {
-            # Parse output to find which build failed
-            $outputStr = $output -join "`n"
-
-            if ($outputStr -match 'npm run build:webpack exited with code (\d+)') {
-                if ($matches[1] -ne '0') {
-                    Write-Fail "Webpack build failed (exit code $($matches[1]))"
-                }
-            }
-
-            if ($outputStr -match 'npm run build:types exited with code (\d+)') {
-                if ($matches[1] -ne '0') {
-                    Write-Fail "TypeScript build failed (exit code $($matches[1]))"
-                }
-            }
-
-            throw "Build failed (exit code $buildExitCode)"
         }
 
         Write-Success "MFE '$label' built successfully"
