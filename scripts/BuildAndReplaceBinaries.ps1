@@ -114,7 +114,7 @@ function Copy-MfeBuildFiles {
         $mfesDir = Join-Path $TargetBasePath "mfes"
         
         # Find MFE folder matching pattern: mfe-label-version-*
-        $mfeFolders = @(Get-ChildItem -Path $mfesDir -Directory -Filter "$MfeLabel-*" -ErrorAction SilentlyContinue)
+        $mfeFolders = @(Get-ChildItem -Path $mfesDir -Directory -Filter "$MfeLabel*" -ErrorAction SilentlyContinue)
         
         if ($mfeFolders.Count -eq 0) {
             Write-Warn "MFE '$MfeLabel' not installed in MAF. Skipping replace binaries for this MFE."
