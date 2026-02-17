@@ -30,7 +30,7 @@
     3. Copies bin/Release/<framework>/ to MAF (if -ReplaceBinaries)
 
     REQUIREMENTS:
-    - PowerShell 7.0 or higher
+    - PowerShell
     - Node.js (for MFE builds)
     - .NET SDK (for service builds)
     - Package Manager: npm, pnpm, or yarn (auto-detected)
@@ -261,7 +261,7 @@ Build Process:
     3. Copy bin/Release/<framework>/ to MAF if -ReplaceBinaries specified
 
 Requirements:
-  - PowerShell 7.0 or higher
+  - PowerShell
   - Node.js (for MFE builds)
   - .NET SDK (for service builds)
   - npm, pnpm, or yarn (auto-detected)

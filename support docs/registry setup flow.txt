@@ -1,0 +1,17 @@
+-Go to registry editor
+-Create Keys Till Install : Computer\HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\WonderBiz Technologies\WonderBiz Platform\01.00\Install
+-Inside Install create new string value : Path : C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\
+-Create same folders at PrgramFiles (x86)
+-At C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\ create Folders as following
+	- C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist  (MAF and dist)
+-inside dist we will create app by name specified in our app.manifest.json -> appLabel
+	- so create C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist\premal-app-0.3.0-alpha.14 
+		-(here 0.3.0 is version speciefied in app.manifest)
+		-(alpha.14 is something like build number)
+-Inside app(premal-app-0.3.0-alpha.14) create 2 folders 
+	-C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist\premal-app-0.3.0-alpha.14\mfes
+	-C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist\premal-app-0.3.0-alpha.14\services
+-Inside mfes 
+	-Sample mfe : C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist\premal-app-0.3.0-alpha.14\mfes\mfe-1-0.3.0-alpha.14\0.3.0 (Build files goes here)
+-Inside services
+	-Sample service : C:\Program Files (x86)\WonderBiz Technologies\WonderBiz Platform\MAF\dist\premal-app-0.3.0-alpha.14\services\premal-service.webapi-0.3.0-alpha.14 (Build files goes here)
