@@ -1,0 +1,5 @@
+{
+  "registryKey_sample": "HKLM:\\SOFTWARE\\WOW6432Node\\Schneider Electric\\EcoStruxure Automation Expert Platform\\01.00\\Install",
+  "registryKey": "HKLM:\\SOFTWARE\\WOW6432Node\\WonderBiz Technologies\\WonderBiz Platform\\01.00\\Install",
+  "defaultPackageManager": "npm"
+}

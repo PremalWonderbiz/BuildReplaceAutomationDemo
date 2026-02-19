@@ -19,8 +19,6 @@ param (
 Set-StrictMode -Version 1
 $ErrorActionPreference = "Stop"
 
-[string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\WonderBiz Technologies\WonderBiz Platform\01.00\Install"
-# [string]$registryKey = "HKLM:\SOFTWARE\WOW6432Node\Schneider Electric\EcoStruxure Automation Expert Platform\01.00\Install"
 [string]$appPathInMAF = ""
 
 # Set default paths if not provided
@@ -72,6 +70,43 @@ function Write-Fail { Write-Host "[ERROR] $args"   -ForegroundColor Red }
 function Test-CommandExists {
     param ([string]$Command)
     $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
+}
+
+function Read-AndValidateBuildConfig {
+    param ([string]$ConfigPath)
+
+    # File existence
+    if (-not (Test-Path $ConfigPath)) {
+        throw "Script config file not found: $ConfigPath"
+    }
+
+    # Valid JSON
+    try {
+        $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw "Script config is not valid JSON: $_"
+    }
+
+    # Required fields
+    $requiredFields = @("registryKey", "defaultPackageManager")
+    foreach ($field in $requiredFields) {
+        if (-not $config.PSObject.Properties[$field] -or [string]::IsNullOrWhiteSpace($config.$field)) {
+            if ($field -eq "registrykey" -and !$ReplaceBinaries) {
+                continue
+            }
+            throw "Script config is missing required field: '$field'"
+        }
+    }
+
+    # Value validation
+
+    $validPMs = @("npm", "pnpm", "yarn")
+    if ($config.defaultPackageManager -notin $validPMs) {
+        throw "Script config 'defaultPackageManager' must be one of: $($validPMs -join ', '). Got: '$($config.defaultPackageManager)'"
+    }
+
+    return $config
 }
 
 #endregion
@@ -242,7 +277,7 @@ function Build-MFE {
         if (Test-Path "pnpm-lock.yaml") { "pnpm" }
         elseif (Test-Path "yarn.lock") { "yarn" }
         elseif (Test-Path "package-lock.json") { "npm" }
-        else { "npm" }
+        else { $defaultPackageManager }
 
         if (-not (Test-CommandExists $packageManager)) {
             throw "$packageManager is not installed or not in PATH"
@@ -401,7 +436,17 @@ if ($Help) {
     exit 0
 }
 
+
 try {
+    #region ============================ Config Loading ============================
+    # Load and validate Script configSSS
+    $configPath = Join-Path $PSScriptRoot "BuildAndReplace.config.json"
+    $buildConfig = Read-AndValidateBuildConfig -ConfigPath $configPath
+    [string]$registryKey = $buildConfig.registryKey
+    [string]$defaultPackageManager = $buildConfig.defaultPackageManager
+
+    #endregion
+
     Write-Host "`n=== Script Execution Started ===" -ForegroundColor Magenta
     Write-Host "============================================" -ForegroundColor Magenta
 
