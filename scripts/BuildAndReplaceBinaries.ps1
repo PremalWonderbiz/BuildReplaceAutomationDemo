@@ -21,11 +21,17 @@ $ErrorActionPreference = "Stop"
 
 [string]$appPathInMAF = ""
 
-# Set default paths if not provided
-# PSScriptRoot is in 'scripts' folder, so go up one level (..) to project root, then into 'src'
-$projectRoot = Split-Path $PSScriptRoot -Parent
-$ManifestPath = Join-Path (Join-Path $projectRoot "src") "app.manifest.json"
-$WorkingDir = Join-Path $projectRoot "src"
+#endregion
+
+#region ============================ Imports ============================
+
+# Load all shared utilities (console helpers, config validation, environment init, build loops, etc.)
+. "$PSScriptRoot\Shared.ps1"
+
+# Dot-source build scripts to load their functions into this script's scope.
+# The standalone execution block inside each is automatically skipped when dot-sourced.
+. "$PSScriptRoot\BuildMfes.ps1"
+. "$PSScriptRoot\BuildServices.ps1"
 
 #endregion
 
@@ -34,7 +40,7 @@ $WorkingDir = Join-Path $projectRoot "src"
 function Show-CliHelp {
     # Get the current script filename dynamically
     $scriptName = Split-Path -Leaf $PSCommandPath
-    
+
     $helpText = @"
 $scriptName - Build and replace MFE and .NET service binaries
 
@@ -43,387 +49,17 @@ Usage: .\$scriptName [options]
 
 Automates building of Micro Frontends (MFEs) and .NET services from app.manifest.json configuration.
 
-Options: 
+Options:
   -BuildTarget <target>      Specify which components to build
                              Values: All (default), MfesOnly, ServicesOnly
-  
+
   -ReplaceBinaries           Copy built binaries to MAF installation after build
                              (requires MAF to be installed)
+
+  -Help, -h                  Show this help message
 "@
-    
-    Write-Host $helpText
-}
 
-#endregion
-
-#region ============================ Console Output Helpers ============================
-
-function Write-Info { Write-Host "[INFO] $args"    -ForegroundColor Cyan }
-function Write-Success { Write-Host "[SUCCESS] $args" -ForegroundColor Green }
-function Write-Warn { Write-Host "[WARN] $args"    -ForegroundColor Yellow }
-function Write-Fail { Write-Host "[ERROR] $args"   -ForegroundColor Red }
-
-#endregion
-
-#region ============================ Utility Functions ============================
-
-function Test-CommandExists {
-    param ([string]$Command)
-    $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
-}
-
-function Read-AndValidateBuildConfig {
-    param ([string]$ConfigPath)
-
-    # File existence
-    if (-not (Test-Path $ConfigPath)) {
-        throw "Script config file not found: $ConfigPath"
-    }
-
-    # Valid JSON
-    try {
-        $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-    }
-    catch {
-        throw "Script config is not valid JSON: $_"
-    }
-
-    # Required fields
-    $requiredFields = @("registryKey", "defaultPackageManager")
-    foreach ($field in $requiredFields) {
-        if (-not $config.PSObject.Properties[$field] -or [string]::IsNullOrWhiteSpace($config.$field)) {
-            if ($field -eq "registrykey" -and !$ReplaceBinaries) {
-                continue
-            }
-            throw "Script config is missing required field: '$field'"
-        }
-    }
-
-    # Value validation
-
-    $validPMs = @("npm", "pnpm", "yarn")
-    if ($config.defaultPackageManager -notin $validPMs) {
-        throw "Script config 'defaultPackageManager' must be one of: $($validPMs -join ', '). Got: '$($config.defaultPackageManager)'"
-    }
-
-    return $config
-}
-
-#endregion
-
-#region ============================ File Copy Helpers ============================
-
-function Copy-MfeBuildFiles {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$MfeLabel,
-
-        [Parameter(Mandatory = $true)]
-        [string]$SourcePath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$TargetBasePath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Version
-    )
-
-    try {
-        $mfesDir = Join-Path $TargetBasePath "mfes"
-        
-        # Find MFE folder matching pattern: mfe-label-version-*
-        $mfeFolders = @(Get-ChildItem -Path $mfesDir -Directory -Filter "$MfeLabel*" -ErrorAction SilentlyContinue)
-        
-        if ($mfeFolders.Count -eq 0) {
-            Write-Warn "MFE '$MfeLabel' not installed in MAF. Skipping replace binaries for this MFE."
-            return $false
-        }
-
-        $mfeFolder = $mfeFolders[0].FullName
-        
-        # Find version folder inside MFE folder
-        $versionFolders = @(Get-ChildItem -Path $mfeFolder -Directory -Filter "$Version*" -ErrorAction SilentlyContinue)
-        
-        if ($versionFolders.Count -eq 0) {
-            Write-Warn "Version folder not found for '$MfeLabel' in MAF. Skipping replace binaries for this MFE."
-            return $false
-        }
-
-        $targetPath = $versionFolders[0].FullName
-        
-        # Source dist folder
-        $distPath = Join-Path $SourcePath "dist"
-        
-        if (-not (Test-Path $distPath)) {
-            Write-Warn "Build output folder not found: $distPath"
-            return $false
-        }
-
-        Write-Info "Replacing MFE binaries in MAF..."
-        Write-Host "  From: $distPath" -ForegroundColor Gray
-        Write-Host "  To:   $targetPath" -ForegroundColor Gray
-
-        # Copy files from dist to target
-        if (-not (Test-Path $targetPath)) {
-            Write-Warn "Target mfe folder not found in MAF: $targetPath. Skipping replace binaries for this service."
-            return $false
-        }
-        Remove-Item "$targetPath\*" -Recurse -Force
-        Copy-Item -Path (Join-Path $distPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
-        
-        Write-Success "MFE '$MfeLabel' binaries replaced successfully"
-        return $true
-    }
-    catch {
-        Write-Fail "Failed to replace MFE binaries: $_"
-        return $false
-    }
-}
-
-function Copy-ServiceBuildFiles {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$ServiceLabel,
-
-        [Parameter(Mandatory = $true)]
-        [string]$SourcePath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$TargetBasePath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Framework
-    )
-
-    try {
-        $servicesDir = Join-Path $TargetBasePath "services"
-        
-        # Find service folder matching pattern: service-label-*
-        $serviceFolders = @(Get-ChildItem -Path $servicesDir -Directory -Filter "$ServiceLabel*" -ErrorAction SilentlyContinue)
-        
-        if ($serviceFolders.Count -eq 0) {
-            Write-Warn "Service '$ServiceLabel' not installed in MAF. Skipping replace binaries for this service."
-            return $false
-        }
-
-        $targetPath = $serviceFolders[0].FullName
-        
-        # Source bin folder (bin/Release/framework)
-        $binPath = Join-Path $SourcePath "bin" | Join-Path -ChildPath "Release" | Join-Path -ChildPath $Framework
-        
-        if (-not (Test-Path $binPath)) {
-            Write-Warn "Build output folder not found: $binPath"
-            return $false
-        }
-
-        Write-Info "Replacing Service binaries in MAF..."
-        Write-Host "  From: $binPath" -ForegroundColor Gray
-        Write-Host "  To:   $targetPath" -ForegroundColor Gray
-
-        # Copy files from bin to target
-        if (-not (Test-Path $targetPath)) {
-            Write-Warn "Target service folder not found in MAF: $targetPath. Skipping replace binaries for this service."
-            return $false
-        }
-        Remove-Item "$targetPath\*" -Recurse -Force
-        Copy-Item -Path (Join-Path $binPath "*") -Destination $targetPath -Recurse -Force -ErrorAction Stop
-        
-        Write-Success "Service '$ServiceLabel' binaries replaced successfully"
-        return $true
-    }
-    catch {
-        Write-Fail "Failed to replace Service binaries: $_"
-        return $false
-    }
-}
-
-#endregion
-
-#region ============================ MFE Build Logic ============================
-function Build-MFE {
-    param (
-        [Parameter(Mandatory = $true)]
-        [object]$Mfe,
-
-        [Parameter(Mandatory = $true)]
-        [string]$BaseDir,
-
-        [Parameter(Mandatory = $false)]
-        [string]$MafPath = "",
-
-        [Parameter(Mandatory = $false)]
-        [string]$Version = ""
-    )
-
-    $label = $Mfe.label
-    $mfePath = Join-Path (Join-Path $BaseDir "mfes") $label
-    
-    # check $mfePath exists
-    if (-not (Test-Path $mfePath)) {
-        Write-Warn "Skipping MFE '$label': Path not found ($mfePath)"
-        return @{
-            BuildSuccess = $false
-            CopySuccess  = $false
-        }
-    }
-
-    Write-Info "Building MFE: $label"
-    Write-Host "  Path: $mfePath" -ForegroundColor Gray
-
-    Push-Location $mfePath
-    try {
-        # Check for package manager
-        $packageManager =
-        if (Test-Path "pnpm-lock.yaml") { "pnpm" }
-        elseif (Test-Path "yarn.lock") { "yarn" }
-        elseif (Test-Path "package-lock.json") { "npm" }
-        else { $defaultPackageManager }
-
-        if (-not (Test-CommandExists $packageManager)) {
-            throw "$packageManager is not installed or not in PATH"
-        }
-
-        Write-Host "  Using: $packageManager" -ForegroundColor Gray
-
-        # Install dependencies if node_modules doesn't exist
-        if (-not (Test-Path "node_modules")) {
-            Write-Host "  Command: $packageManager install" -ForegroundColor Gray
-            Write-Info "Installing dependencies..."
-            $output = switch ($packageManager) {
-                "npm" { npm install }
-                "pnpm" { pnpm install }
-                "yarn" { yarn install }
-                default { throw "Unsupported package manager: $packageManager" }
-            }
-
-            $outputStr = $output -join "`n" 
-            Write-Host "$outputStr" -ForegroundColor Gray
-
-            if ($LASTEXITCODE -ne 0) {
-                throw "Dependency installation failed with exit code $LASTEXITCODE"
-            }
-        }
-
-        # Build
-        Write-Host "  Command: $packageManager run build" -ForegroundColor Gray
-        Write-Info "Running build..."
-
-        $output = ""
-        $output = switch ($packageManager) {
-            "npm" { npm run build }
-            "pnpm" { pnpm run build }
-            "yarn" { yarn run build }
-            default { throw "Unsupported package manager: $packageManager" }
-        }
-        
-        $outputStr = $output -join "`n" 
-        Write-Host "$outputStr" -ForegroundColor Gray
-        # Write-Host "  Build Exit Code: $buildExitCode" -ForegroundColor Gray
-
-        $buildExitCode = $LASTEXITCODE
-
-        if ($buildExitCode -ne 0) {
-            throw "Build failed with exit code $buildExitCode"
-        }
-
-        Write-Success "MFE '$label' built successfully"
-        
-        # Copy build files to MAF if path is provided
-        $copySuccess = $false
-        if ($MafPath -and $Version) {
-            $copySuccess = Copy-MfeBuildFiles -MfeLabel $label -SourcePath $mfePath -TargetBasePath $MafPath -Version $Version
-        }
-        
-        return @{
-            BuildSuccess = $true
-            CopySuccess  = $copySuccess
-        }
-    }
-    catch {
-        Write-Fail "Failed to build MFE '$label': $_"
-        return @{
-            BuildSuccess = $false
-            CopySuccess  = $false
-        }
-    }
-    finally {
-        Pop-Location
-    }
-}
-
-#endregion
-
-#region ============================ Service Build Logic ============================
-
-function Build-Service {
-    param (
-        [Parameter(Mandatory = $true)]
-        [object]$Service,
-
-        [Parameter(Mandatory = $true)]
-        [string]$BaseDir,
-
-        [Parameter(Mandatory = $false)]
-        [string]$MafPath = ""
-    )
-
-    $label = $Service.microserviceLabel
-    $servicesDir = Join-Path $BaseDir "services"
-
-    # Find label.csproj file at any level under services directory
-    $csprojFiles = @(Get-ChildItem -Path $servicesDir -Filter "$label.csproj" -Recurse -ErrorAction SilentlyContinue)
-
-    if ($csprojFiles.Count -eq 0) {
-        Write-Warn "Skipping service '$label': $label.csproj file not found under $servicesDir"
-        return @{
-            BuildSuccess = $false
-            CopySuccess  = $false
-        }
-    }
-
-    $csprojPath = $csprojFiles[0].FullName
-    $servicePath = Split-Path $csprojPath -Parent
-
-    Write-Info "Building Service: $label"
-    Write-Host "  Path: $servicePath" -ForegroundColor Gray
-    Write-Host "  Project: $($csprojFiles[0].Name)" -ForegroundColor Gray
-
-    try {
-        if (-not (Test-CommandExists "dotnet")) {
-            throw "dotnet CLI is not installed or not in PATH"
-        }
-
-        $framework = $Service.framework
-        $buildArgs = @("build", $csprojPath, "-c", "Release")
-
-        if ($framework) {
-            $buildArgs += @("-f", $framework)
-            Write-Host "  Framework: $framework" -ForegroundColor Gray
-        }
-
-        & dotnet @buildArgs | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-
-        Write-Success "Service '$label' built successfully"
-        
-        # Copy build files to MAF if path is provided
-        $copySuccess = $false
-        if ($MafPath -and $framework) {
-            $copySuccess = Copy-ServiceBuildFiles -ServiceLabel $label -SourcePath $servicePath -TargetBasePath $MafPath -Framework $framework
-        }
-        
-        return @{
-            BuildSuccess = $true
-            CopySuccess  = $copySuccess
-        }
-    }
-    catch {
-        Write-Fail "Failed to build service '$label': $_"
-        return @{
-            BuildSuccess = $false
-            CopySuccess  = $false
-        }
-    }
+    Show-ScriptHelp -HelpText $helpText
 }
 
 #endregion
@@ -438,168 +74,57 @@ if ($Help) {
 
 
 try {
-    #region ============================ Config Loading ============================
-    # Load and validate Script configSSS
-    $configPath = Join-Path $PSScriptRoot "BuildAndReplace.config.json"
-    $buildConfig = Read-AndValidateBuildConfig -ConfigPath $configPath
-    [string]$registryKey = $buildConfig.registryKey
-    [string]$defaultPackageManager = $buildConfig.defaultPackageManager
-
+    #region ============================ Environment Initialization ============================
+    # Load config, validate paths, read manifest, and print startup banner
+    $env = Initialize-BuildEnvironment -ScriptRoot $PSScriptRoot
+    [string]$registryKey = $env.Config.registryKey
+    [string]$defaultPackageManager = $env.Config.defaultPackageManager
+    $manifest = $env.Manifest
+    $WorkingDir = $env.WorkingDir
     #endregion
-
-    Write-Host "`n=== Script Execution Started ===" -ForegroundColor Magenta
-    Write-Host "============================================" -ForegroundColor Magenta
-
-    # Validate paths
-    if (-not (Test-Path $ManifestPath)) {
-        throw "Manifest file not found: $ManifestPath"
-    }
-
-    if (-not (Test-Path $WorkingDir)) {
-        throw "Working directory not found: $WorkingDir"
-    }
-
-    # Resolve to absolute paths
-    $ManifestPath = (Resolve-Path $ManifestPath).Path
-    $WorkingDir = (Resolve-Path $WorkingDir).Path
-
-    Write-Info "Manifest: $ManifestPath"
-    Write-Info "Working Directory: $WorkingDir"
-
-    # Read and parse manifest
-    $manifest = Get-Content $ManifestPath -Raw | ConvertFrom-Json
-    Write-Info "App: $($manifest.appLabel) v$($manifest.version)"
 
     #replace binaries validation and path retrieval
     if ($ReplaceBinaries) {
-        Write-Info "Replace Binaries flag is set. Built binaries will be copied to MAF installation directory after build."
-        
-        # Get MAF installation path from registry
-        if (-not (Test-Path $registryKey)) {
-            throw "Registry not found: $registryKey" #change
-        }
-
-        try {
-            $pathValue = Get-ItemProperty -Path $registryKey -Name "Path" -ErrorAction Stop
-            $mafInstallPath = $pathValue.Path
-            Write-Info "MAF Installation Path: $mafInstallPath"
-            if (-not (Test-Path $mafInstallPath)) {
-                throw "MAF installation path error: Please check if WonderBiz Platform is installed correctly."
-            }
-            $distRoot = Join-Path (Join-Path $mafInstallPath "MAF") "dist"
-
-            $pattern = "$($manifest.appLabel)-$($manifest.version)-*"
-
-            $appFolder = Get-ChildItem -Path $distRoot -Directory -Filter $pattern -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-            if (-not $appFolder) {
-                throw "App is not installed in MAF: $($manifest.appLabel) v$($manifest.version)"
-            }
-
-            $appPathInMAF = $appFolder.FullName
-            Write-Info "Target MAF App Dist Path: $appPathInMAF"
-        }
-        catch {
-            throw "$_"
-        }
-    }
-
-    $results = @{
-        MfesTotal        = 0
-        MfesSuccess      = 0
-        MfesFailed       = 0
-        ServicesTotal    = 0
-        ServicesSuccess  = 0
-        ServicesFailed   = 0
-        MfesReplaced     = 0
-        ServicesReplaced = 0
+        $appPathInMAF = Resolve-MafAppPath -RegistryKey $registryKey `
+            -AppLabel $manifest.appLabel `
+            -Version $manifest.version
     }
 
     # Build MFEs
-    if ($BuildTarget -in @('All', 'MfesOnly') -and $manifest.mfes) {
-        Write-Host "`n=== Building MFEs ===" -ForegroundColor Blue
-        Write-Host "`=== Total MFEs found in app manifest : ($($manifest.mfes.Count)) ===" -ForegroundColor Blue
-        Write-Host "============================================" -ForegroundColor Blue
-
-        foreach ($mfe in $manifest.mfes) {
-            $results.MfesTotal++
-            $result = Build-MFE -Mfe $mfe -BaseDir $WorkingDir -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" }) -Version $manifest.version
-            if ($result.BuildSuccess) {
-                $results.MfesSuccess++
-                if ($result.CopySuccess) {
-                    $results.MfesReplaced++
-                }
-            }
-            else {
-                $results.MfesFailed++
-            }
-            Write-Host ""
-        }
+    if ($BuildTarget -in @('All', 'MfesOnly')) {
+        $mfeResults = Invoke-MfeBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
+            -DefaultPackageManager $defaultPackageManager `
+            -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" }) `
+            -Version $manifest.version
+    }
+    else {
+        $mfeResults = @{ MfesTotal = 0; MfesSuccess = 0; MfesFailed = 0; MfesReplaced = 0 }
     }
 
     # Build Services
-    if ($BuildTarget -in @('All', 'ServicesOnly') -and $manifest.services) {
-        Write-Host "`n=== Building Services ($($manifest.services.Count)) ===" -ForegroundColor Blue
-        Write-Host "`=== Total Services found in app manifest : ($($manifest.services.Count)) ===" -ForegroundColor Blue
-        Write-Host "============================================" -ForegroundColor Blue
-
-        foreach ($service in $manifest.services) {
-            $results.ServicesTotal++
-            $result = Build-Service -Service $service -BaseDir $WorkingDir -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" })
-            if ($result.BuildSuccess) {
-                $results.ServicesSuccess++
-                if ($result.CopySuccess) {
-                    $results.ServicesReplaced++
-                }
-            }
-            else {
-                $results.ServicesFailed++
-            }
-            Write-Host ""
-        }
+    if ($BuildTarget -in @('All', 'ServicesOnly')) {
+        $serviceResults = Invoke-ServiceBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
+            -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" })
+    }
+    else {
+        $serviceResults = @{ ServicesTotal = 0; ServicesSuccess = 0; ServicesFailed = 0; ServicesReplaced = 0 }
     }
 
     # Summary
-    Write-Host "`n=== Build Summary ===" -ForegroundColor Magenta
-    Write-Host "============================================" -ForegroundColor Magenta
-
-    if ($results.MfesTotal -gt 0) {
-        Write-Host "  MFEs:     $($results.MfesSuccess)/$($results.MfesTotal) successful" `
-            -ForegroundColor ($(if ($results.MfesFailed -eq 0) { "Green" } else { "Yellow" }))
-    }
-
-    if ($results.ServicesTotal -gt 0) {
-        Write-Host "  Services: $($results.ServicesSuccess)/$($results.ServicesTotal) successful" `
-            -ForegroundColor ($(if ($results.ServicesFailed -eq 0) { "Green" } else { "Yellow" }))
-    }
+    Write-BuildSummaryBanner
+    Write-MfeBuildSummary -Results $mfeResults
+    Write-ServiceBuildSummary -Results $serviceResults
 
     if ($ReplaceBinaries) {
         Write-Host "`n=== Replace Binaries Summary ===" -ForegroundColor Magenta
         Write-Host "============================================" -ForegroundColor Magenta
-        
-        if ($results.MfesTotal -gt 0) {
-            Write-Host "  MFEs:     $($results.MfesReplaced)/$($results.MfesSuccess) binaries replaced" `
-                -ForegroundColor ($(if ($results.MfesReplaced -eq $results.MfesSuccess) { "Green" } else { "Yellow" }))
-        }
-        
-        if ($results.ServicesTotal -gt 0) {
-            Write-Host "  Services: $($results.ServicesReplaced)/$($results.ServicesSuccess) binaries replaced" `
-                -ForegroundColor ($(if ($results.ServicesReplaced -eq $results.ServicesSuccess) { "Green" } else { "Yellow" }))
-        }
+        Write-MfeReplaceSummary -Results $mfeResults
+        Write-ServiceReplaceSummary -Results $serviceResults
     }
 
-    $totalFailed = $results.MfesFailed + $results.ServicesFailed
-
-    if ($totalFailed -eq 0) {
-        Write-Host "`n[SUCCESS] All builds completed successfully!" -ForegroundColor Green
-        exit 0
-    }
-    else {
-        Write-Host "`n[WARN] Build completed with $totalFailed failure(s)" -ForegroundColor Yellow
-        exit 1
-    }
+    Exit-WithBuildResult -FailedCount ($mfeResults.MfesFailed + $serviceResults.ServicesFailed) `
+        -SuccessMessage "All builds completed successfully!" `
+        -FailPrefix "Build completed"
 }
 catch {
     Write-Fail "Script failed: $_"
