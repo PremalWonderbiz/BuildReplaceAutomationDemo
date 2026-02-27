@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 
 # Shared.ps1
-# Shared utilities used by BuildAndReplaceBinaries.ps1, BuildMfes.ps1 and BuildServices.ps1
+# Shared utilities used by BuildReplaceAll.ps1, BuildReplaceMfes.ps1 and BuildReplaceServices.ps1
 # This file contains only function definitions — no execution logic.
 # It is always loaded via dot-source:  . "$PSScriptRoot\Shared.ps1"
 
@@ -69,7 +69,7 @@ function Initialize-BuildEnvironment {
     )
 
     # Load and validate config
-    $configPath = Join-Path $ScriptRoot "BuildAndReplace.config.json"
+    $configPath = Join-Path $ScriptRoot "BuildReplace.config.json"
     $buildConfig = Read-AndValidateBuildConfig -ConfigPath $configPath
 
     # Derive paths

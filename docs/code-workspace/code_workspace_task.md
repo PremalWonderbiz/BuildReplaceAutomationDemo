@@ -1,110 +1,89 @@
-# Explanation of the VS Code Task Configuration (Build project task)
+# VS Code Task Configuration
 
-This task configuration defines a **build task** in VS Code that runs a PowerShell script to build all projects in the workspace.
+VS Code tasks are configured in `project.code-workspace` under the `tasks` key. They provide one-click or keyboard-shortcut access to the build automation scripts without needing to open a terminal manually.
 
 ---
 
-## 🔹 Basic Configuration
+## How It Works
 
-### `label`
+All tasks invoke `dev.ps1` with a specific `-Mode` argument, bypassing the interactive menu and running the chosen build mode directly.
 
 ```json
-"label": "Build All Projects"
+{
+  "label": "Build All Projects",
+  "type": "shell",
+  "command": "powershell",
+  "args": [
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "${workspaceFolder}/scripts/dev.ps1",
+    "-Mode",
+    "1"
+  ]
+}
 ```
 
-- The name shown in VS Code’s task list
-- Visible when you run **`Ctrl + Shift + P` → Run Task**
+The equivalent terminal command for this task is:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1 -Mode 1
+```
 
 ---
 
-### `type`
+## The 6 Configured Tasks
 
-```json
-"type": "shell"
-```
-
-- Runs the task as a shell command
-- Common options:
-  - `shell` – run via terminal (used here)
-  - `process` – direct process execution
-
----
-
-### `command`
-
-```json
-"command": "powershell"
-```
-
-- Specifies the executable to run
-- In this case, the task launches **PowerShell**
+| Label                       | Mode | What It Runs                                |
+| --------------------------- | ---- | ------------------------------------------- |
+| Build All Projects          | 1    | `BuildReplaceAll.ps1`                       |
+| Build MFEs Only             | 2    | `BuildReplaceMfes.ps1`                      |
+| Build Services Only         | 3    | `BuildReplaceServices.ps1`                  |
+| Build Replace All Projects  | 4    | `BuildReplaceAll.ps1 -ReplaceBinaries`      |
+| Build Replace MFEs Only     | 5    | `BuildReplaceMfes.ps1 -ReplaceBinaries`     |
+| Build Replace Services Only | 6    | `BuildReplaceServices.ps1 -ReplaceBinaries` |
 
 ---
 
-## 🔹 Arguments
+## Running Tasks
+
+**Via keyboard shortcut:**
+
+- `Ctrl + Shift + B` — runs the default build task (Build All Projects)
+
+**Via the Command Palette:**
+
+- `Ctrl + Shift + P` → `Tasks: Run Task` → select from the list
+
+---
+
+## Task Configuration Options Explained
+
+### `type: "shell"`
+
+Runs the task as a shell command through the integrated terminal.
+
+### `command: "powershell"`
+
+Launches Windows PowerShell as the shell executable.
 
 ### `args`
 
-```json
-"args": [
-  "-ExecutionPolicy",
-  "Bypass",
-  "-File",
-  "${workspaceFolder}/scripts/build-projects.ps1"
-]
-```
+Arguments passed to PowerShell:
 
-These arguments are passed directly to PowerShell.
+- `-ExecutionPolicy Bypass` — temporarily disables PowerShell's script execution restrictions for this run, preventing _"script execution is disabled"_ errors
+- `-File` — tells PowerShell the next argument is a script path to execute
+- `${workspaceFolder}/scripts/dev.ps1` — resolves to the absolute path of `dev.ps1` in the project root
+- `-Mode <n>` — skips `dev.ps1`'s interactive menu and runs the specified mode directly
 
-Equivalent command:
+### `problemMatcher: []`
 
-```powershell
-powershell -ExecutionPolicy Bypass -File path/to/build-projects.ps1
-```
-
-#### Argument Breakdown
-
-1. **`-ExecutionPolicy Bypass`**
-   - PowerShell restricts script execution by default
-   - `Bypass` temporarily disables restrictions for this execution
-   - Prevents _“script execution is disabled”_ errors
-
-2. **`-File`**
-   - Indicates that the next argument is a script file to execute
-
-3. **`${workspaceFolder}/scripts/build-projects.ps1`**
-   - Path to the PowerShell script
-   - `${workspaceFolder}` automatically resolves to the project root
-   - Example:
-
-     ```
-     C:\Users\You\project-structure\scripts\build-projects.ps1
-     ```
-
----
-
-## 🔹 Problem Matcher
-
-### `problemMatcher`
-
-```json
-"problemMatcher": []
-```
-
-- Controls how VS Code detects errors and warnings
-- Empty array means **no output parsing**
-- Optional matchers:
-  - `$tsc` – TypeScript errors
-  - `$msCompile` – C# / MSBuild errors
-
----
-
-## 🔹 Presentation (Terminal Behavior)
+Empty array — VS Code will not try to parse script output for errors. Build results are communicated via exit codes instead.
 
 ### `presentation`
 
 ```json
-"presentation": {
+{
   "echo": true,
   "reveal": "always",
   "focus": false,
@@ -114,88 +93,56 @@ powershell -ExecutionPolicy Bypass -File path/to/build-projects.ps1
 }
 ```
 
-#### Options Explained
-
-- **`echo: true`**
-  - Displays the executed command in the terminal
-
-- **`reveal: "always"`**
-  - Always shows the terminal when the task runs
-  - Alternatives:
-    - `never`
-    - `silent` (only on errors)
-
-- **`focus: false`**
-  - Keeps focus in the editor
-  - Terminal opens without stealing cursor focus
-
-- **`panel: "shared"`**
-  - Reuses the same terminal for all tasks
-  - Options:
-    - `shared`
-    - `dedicated`
-    - `new`
-
-- **`showReuseMessage: true`**
-  - Displays:
-
-    ```
-    Terminal will be reused by tasks, press any key to close it
-    ```
-
-- **`clear: false`**
-  - Preserves previous output
-  - Useful for comparing multiple build runs
-
----
-
-## 🔹 Group (Task Organization)
+| Option             | Value      | Effect                                                                                 |
+| ------------------ | ---------- | -------------------------------------------------------------------------------------- |
+| `echo`             | `true`     | Prints the full command being run in the terminal                                      |
+| `reveal`           | `"always"` | Always opens the terminal panel when the task starts                                   |
+| `focus`            | `false`    | Terminal opens without stealing focus from the editor                                  |
+| `panel`            | `"shared"` | All tasks reuse the same terminal panel                                                |
+| `showReuseMessage` | `true`     | Shows `"Terminal will be reused by tasks, press any key to close it"` after completion |
+| `clear`            | `false`    | Preserves previous terminal output — useful for comparing runs                         |
 
 ### `group`
 
 ```json
-"group": {
+{
   "kind": "build",
   "isDefault": true
 }
 ```
 
-- **`kind: "build"`**
-  - Marks this as a build task
-  - Enables shortcut **`Ctrl + Shift + B`**
-
-- **`isDefault: true`**
-  - Makes this the **default build task**
-  - Runs automatically when using the build shortcut
+- `kind: "build"` — marks the task as a build task, making it accessible via `Ctrl + Shift + B`
+- `isDefault: true` — only one task should have this; it determines which task `Ctrl + Shift + B` runs directly
 
 ---
 
-## 🔹 What Happens When You Run the Task
+## Example Terminal Output
 
-1. Press **`Ctrl + Shift + B`** or run the task manually
-2. VS Code opens the terminal (without focusing it)
-3. The executed command is echoed:
+```
+> Executing task: powershell -ExecutionPolicy Bypass -File C:\...\scripts\dev.ps1 -Mode 1
 
-   ```text
-   Executing task: powershell -ExecutionPolicy Bypass -File C:\...\build-projects.ps1
-   ```
+  ============================================
+    Build & Replace Automation
+  ============================================
 
-4. PowerShell executes the script
-5. Script output (logs, colors, errors) appears in the terminal
-6. Reuse message is shown after completion
-7. Exit code determines success (✓) or failure (✗)
+  [INFO] Selected : Build All Projects
+  [INFO] Script   : BuildReplaceAll.ps1
+  [INFO] Mode     : Build Only
 
----
+=== Script Execution Started ===
+[INFO] Manifest: C:\...\src\app.manifest.json
+[INFO] Working Directory: C:\...\src
+[INFO] App: my-app v1.0.0
 
-## 🔹 Real-World Example Output
-
-```text
-> Executing task: powershell -ExecutionPolicy Bypass -File c:\project-structure\scripts\build-projects.ps1
-
-=== Build Script Started ===
-[INFO] Manifest: C:\...\app.manifest.json
+=== Building MFEs ===
 [INFO] Building MFE: mfe-1
-...
+  ...
+[SUCCESS] MFE 'mfe-1' built successfully
+
+=== Build Summary ===
+  MFEs:     3/3 successful
+  Services: 2/2 successful
+
 [SUCCESS] All builds completed successfully!
 
 Terminal will be reused by tasks, press any key to close it.

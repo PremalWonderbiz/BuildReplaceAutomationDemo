@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 
-# BuildServices.ps1
+# BuildReplaceServices.ps1
 # Builds all .NET services defined in app.manifest.json
 #
-# Usage (standalone):  .\BuildServices.ps1
-# Usage (dot-sourced): . "$PSScriptRoot\BuildServices.ps1"   <- used by BuildAndReplaceBinaries.ps1
+# Usage (standalone):  .\BuildReplaceServices.ps1
+# Usage (dot-sourced): . "$PSScriptRoot\BuildReplaceServices.ps1"   <- used by BuildReplaceAll.ps1
 #
 # When dot-sourced: only function definitions are loaded into the caller's scope.
 # When run directly: full standalone execution (config load, manifest read, build loop, summary).
@@ -31,6 +31,9 @@ Automates building of all .NET services from app.manifest.json configuration.
 Locates each service's .csproj automatically and builds in Release configuration.
 
 Options:
+  -ReplaceBinaries           Copy built binaries to MAF installation after build
+                             (requires MAF to be installed)
+
   -Help, -h                  Show this help message
 "@
 
@@ -177,8 +180,8 @@ function Build-Service {
 
 #region ============================ Standalone Execution ============================
 
-# This block runs ONLY when the script is invoked directly (e.g. .\BuildServices.ps1).
-# When dot-sourced by BuildAndReplaceBinaries.ps1, InvocationName is '.' and this block is skipped —
+# This block runs ONLY when the script is invoked directly (e.g. .\BuildReplaceServices.ps1).
+# When dot-sourced by BuildReplaceAll.ps1, InvocationName is '.' and this block is skipped —
 # only the function definitions above are loaded into the caller's scope.
 if ($MyInvocation.InvocationName -ne '.') {
 
@@ -188,15 +191,33 @@ if ($MyInvocation.InvocationName -ne '.') {
         exit 0
     }
 
+    # Parse -ReplaceBinaries from args (no param block by design — args checked manually)
+    $replaceBinaries = $args -contains '-ReplaceBinaries'
+
     Invoke-StandaloneScript {
         $env = Initialize-BuildEnvironment -ScriptRoot $PSScriptRoot
 
+        # Resolve MAF app path if ReplaceBinaries was requested
+        $mafPath = ""
+        if ($replaceBinaries) {
+            $mafPath = Resolve-MafAppPath -RegistryKey $env.Config.registryKey `
+                -AppLabel $env.Manifest.appLabel `
+                -Version $env.Manifest.version
+        }
+
         # Build Services
-        $results = Invoke-ServiceBuildLoop -Manifest $env.Manifest -WorkingDir $env.WorkingDir
+        $results = Invoke-ServiceBuildLoop -Manifest $env.Manifest -WorkingDir $env.WorkingDir `
+            -MafPath $mafPath
 
         # Summary
         Write-BuildSummaryBanner
         Write-ServiceBuildSummary -Results $results
+
+        if ($replaceBinaries) {
+            Write-Host "`n=== Replace Binaries Summary ===" -ForegroundColor Magenta
+            Write-Host "============================================" -ForegroundColor Magenta
+            Write-ServiceReplaceSummary -Results $results
+        }
 
         Exit-WithBuildResult -FailedCount $results.ServicesFailed `
             -SuccessMessage "All Service builds completed successfully!" `

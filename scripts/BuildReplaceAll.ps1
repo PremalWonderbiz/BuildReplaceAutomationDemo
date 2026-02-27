@@ -5,10 +5,6 @@
 [CmdletBinding()]
 param (
     [Parameter()]
-    [ValidateSet('All', 'MfesOnly', 'ServicesOnly')]
-    [string]$BuildTarget = 'All',
-
-    [Parameter()]
     [switch]$ReplaceBinaries,
 
     [Parameter()]
@@ -30,8 +26,8 @@ $ErrorActionPreference = "Stop"
 
 # Dot-source build scripts to load their functions into this script's scope.
 # The standalone execution block inside each is automatically skipped when dot-sourced.
-. "$PSScriptRoot\BuildMfes.ps1"
-. "$PSScriptRoot\BuildServices.ps1"
+. "$PSScriptRoot\BuildReplaceMfes.ps1"
+. "$PSScriptRoot\BuildReplaceServices.ps1"
 
 #endregion
 
@@ -45,14 +41,11 @@ function Show-CliHelp {
 $scriptName - Build and replace MFE and .NET service binaries
 
 Usage: .\$scriptName [options]
-   or: .\$scriptName [-BuildTarget <target>] [-ReplaceBinaries]
+   or: .\$scriptName [-ReplaceBinaries]
 
 Automates building of Micro Frontends (MFEs) and .NET services from app.manifest.json configuration.
 
 Options:
-  -BuildTarget <target>      Specify which components to build
-                             Values: All (default), MfesOnly, ServicesOnly
-
   -ReplaceBinaries           Copy built binaries to MAF installation after build
                              (requires MAF to be installed)
 
@@ -91,24 +84,14 @@ try {
     }
 
     # Build MFEs
-    if ($BuildTarget -in @('All', 'MfesOnly')) {
-        $mfeResults = Invoke-MfeBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
-            -DefaultPackageManager $defaultPackageManager `
-            -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" }) `
-            -Version $manifest.version
-    }
-    else {
-        $mfeResults = @{ MfesTotal = 0; MfesSuccess = 0; MfesFailed = 0; MfesReplaced = 0 }
-    }
+    $mfeResults = Invoke-MfeBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
+        -DefaultPackageManager $defaultPackageManager `
+        -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" }) `
+        -Version $manifest.version
 
     # Build Services
-    if ($BuildTarget -in @('All', 'ServicesOnly')) {
-        $serviceResults = Invoke-ServiceBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
-            -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" })
-    }
-    else {
-        $serviceResults = @{ ServicesTotal = 0; ServicesSuccess = 0; ServicesFailed = 0; ServicesReplaced = 0 }
-    }
+    $serviceResults = Invoke-ServiceBuildLoop -Manifest $manifest -WorkingDir $WorkingDir `
+        -MafPath $(if ($ReplaceBinaries) { $appPathInMAF } else { "" })
 
     # Summary
     Write-BuildSummaryBanner

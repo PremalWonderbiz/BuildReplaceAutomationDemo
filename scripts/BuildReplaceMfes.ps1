@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 
-# BuildMfes.ps1
+# BuildReplaceMfes.ps1
 # Builds all MFEs defined in app.manifest.json
 #
-# Usage (standalone):  .\BuildMfes.ps1
-# Usage (dot-sourced): . "$PSScriptRoot\BuildMfes.ps1"   <- used by BuildAndReplaceBinaries.ps1
+# Usage (standalone):  .\BuildReplaceMfes.ps1
+# Usage (dot-sourced): . "$PSScriptRoot\BuildReplaceMfes.ps1"   <- used by BuildReplaceAll.ps1
 #
 # When dot-sourced: only function definitions are loaded into the caller's scope.
 # When run directly: full standalone execution (config load, manifest read, build loop, summary).
@@ -31,6 +31,9 @@ Automates building of all Micro Frontends (MFEs) from app.manifest.json configur
 Detects the package manager automatically (pnpm, yarn, npm) per MFE.
 
 Options:
+  -ReplaceBinaries           Copy built binaries to MAF installation after build
+                             (requires MAF to be installed)
+
   -Help, -h                  Show this help message
 "@
 
@@ -227,8 +230,8 @@ function Build-MFE {
 
 #region ============================ Standalone Execution ============================
 
-# This block runs ONLY when the script is invoked directly (e.g. .\BuildMfes.ps1).
-# When dot-sourced by BuildAndReplaceBinaries.ps1, InvocationName is '.' and this block is skipped —
+# This block runs ONLY when the script is invoked directly (e.g. .\BuildReplaceMfes.ps1).
+# When dot-sourced by BuildReplaceAll.ps1, InvocationName is '.' and this block is skipped —
 # only the function definitions above are loaded into the caller's scope.
 if ($MyInvocation.InvocationName -ne '.') {
 
@@ -238,16 +241,35 @@ if ($MyInvocation.InvocationName -ne '.') {
         exit 0
     }
 
+    # Parse -ReplaceBinaries from args (no param block by design — args checked manually)
+    $replaceBinaries = $args -contains '-ReplaceBinaries'
+
     Invoke-StandaloneScript {
         $env = Initialize-BuildEnvironment -ScriptRoot $PSScriptRoot
 
+        # Resolve MAF app path if ReplaceBinaries was requested
+        $mafPath = ""
+        if ($replaceBinaries) {
+            $mafPath = Resolve-MafAppPath -RegistryKey $env.Config.registryKey `
+                -AppLabel $env.Manifest.appLabel `
+                -Version $env.Manifest.version
+        }
+
         # Build MFEs
         $results = Invoke-MfeBuildLoop -Manifest $env.Manifest -WorkingDir $env.WorkingDir `
-            -DefaultPackageManager $env.Config.defaultPackageManager
+            -DefaultPackageManager $env.Config.defaultPackageManager `
+            -MafPath $mafPath `
+            -Version $env.Manifest.version
 
         # Summary
         Write-BuildSummaryBanner
         Write-MfeBuildSummary -Results $results
+
+        if ($replaceBinaries) {
+            Write-Host "`n=== Replace Binaries Summary ===" -ForegroundColor Magenta
+            Write-Host "============================================" -ForegroundColor Magenta
+            Write-MfeReplaceSummary -Results $results
+        }
 
         Exit-WithBuildResult -FailedCount $results.MfesFailed `
             -SuccessMessage "All MFE builds completed successfully!" `
