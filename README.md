@@ -6,13 +6,13 @@ PowerShell automation for building **Micro Frontends (MFEs)** and **.NET Service
 
 ## Prerequisites
 
-| Tool | Purpose |
-|---|---|
-| PowerShell Core (`pwsh`) | Running all scripts |
-| Node.js | Building MFEs |
-| `pnpm` / `yarn` / `npm` | MFE package management (auto-detected per project) |
-| .NET SDK | Building Services |
-| MAF installed locally | Replace Binaries mode only |
+| Tool                     | Purpose                                            |
+| ------------------------ | -------------------------------------------------- |
+| PowerShell Core (`pwsh`) | Running all scripts                                |
+| Node.js                  | Building MFEs                                      |
+| `pnpm` / `yarn` / `npm`  | MFE package management (auto-detected per project) |
+| .NET SDK                 | Building Services                                  |
+| MAF installed locally    | Replace Binaries mode only                         |
 
 ---
 
@@ -29,14 +29,14 @@ This opens an interactive menu. Use arrow keys to select a mode and press Enter.
 
 ## The 6 Build Modes
 
-| Mode | What It Does |
-|---|---|
-| **Build All Projects** | Builds all MFEs and Services |
-| **Build MFEs Only** | Builds MFEs only |
-| **Build Services Only** | Builds Services only |
-| **Build Replace All Projects** | Builds all MFEs and Services, then copies output into MAF |
-| **Build Replace MFEs Only** | Builds MFEs only, then copies output into MAF |
-| **Build Replace Services Only** | Builds Services only, then copies output into MAF |
+| Mode                            | What It Does                                              |
+| ------------------------------- | --------------------------------------------------------- |
+| **Build All Projects**          | Builds all MFEs and Services                              |
+| **Build MFEs Only**             | Builds MFEs only                                          |
+| **Build Services Only**         | Builds Services only                                      |
+| **Build Replace All Projects**  | Builds all MFEs and Services, then copies output into MAF |
+| **Build Replace MFEs Only**     | Builds MFEs only, then copies output into MAF             |
+| **Build Replace Services Only** | Builds Services only, then copies output into MAF         |
 
 > **Build Replace** modes require MAF to be installed locally and accessible via the Windows Registry. See [MAF Setup](#maf-setup).
 
@@ -72,12 +72,8 @@ Defines the app and all MFEs and Services to build. Located at `src/app.manifest
 {
   "appLabel": "my-app",
   "version": "1.0.0",
-  "mfes": [
-    { "label": "mfe-1", "name": "mfe-1", "version": "1.0.0" }
-  ],
-  "services": [
-    { "microserviceLabel": "my-service", "framework": "net8.0" }
-  ]
+  "mfes": [{ "label": "mfe-1", "name": "mfe-1", "version": "1.0.0" }],
+  "services": [{ "microserviceLabel": "my-service", "framework": "net8.0" }]
 }
 ```
 
@@ -92,9 +88,9 @@ Script configuration. Located at `scripts/BuildReplace.config.json`.
 }
 ```
 
-| Field | Description |
-|---|---|
-| `registryKey` | Windows Registry path to the MAF installation (used by Replace Binaries mode) |
+| Field                   | Description                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `registryKey`           | Windows Registry path to the MAF installation (used by Replace Binaries mode)   |
 | `defaultPackageManager` | Fallback package manager if no lock file is detected (`npm`, `pnpm`, or `yarn`) |
 
 ---
@@ -116,9 +112,9 @@ See [`docs/code-workspace/code_workspace_task.md`](docs/code-workspace/code_work
 
 ## Documentation
 
-| Doc | Description |
-|---|---|
-| [`docs/scripts/scripts.md`](docs/scripts/scripts.md) | Full reference for all scripts — parameters, behavior, execution flow |
-| [`docs/scripts/hardcoded.md`](docs/scripts/hardcoded.md) | All hardcoded values in the scripts and their priority for being made configurable |
-| [`docs/code-workspace/code_workspace_task.md`](docs/code-workspace/code_workspace_task.md) | VS Code task configuration explained |
-| [`support docs/registry setup flow.txt`](support%20docs/registry%20setup%20flow.txt) | MAF registry and folder setup steps |
+| Doc                                                                                        | Description                                                                        |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| [`docs/scripts/scripts.md`](docs/scripts/scripts.md)                                       | Full reference for all scripts — parameters, behavior, execution flow              |
+| [`docs/scripts/hardcoded.md`](docs/scripts/hardcoded.md)                                   | All hardcoded values in the scripts and their priority for being made configurable |
+| [`docs/code-workspace/code_workspace_task.md`](docs/code-workspace/code_workspace_task.md) | VS Code task configuration explained                                               |
+| [`support docs/registry setup flow.txt`](support%20docs/registry%20setup%20flow.txt)       | MAF registry and folder setup steps                                                |
